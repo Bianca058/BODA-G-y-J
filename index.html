@@ -206,26 +206,40 @@
   }
 
   function uploadOne(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = async function(e) {
-        const base64 = e.target.result.split(',')[1];
-        try {
-          const res = await fetch(SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify({
-              nombre: file.name,
-              tipo: file.type,
-              datos: base64
-            })
-          });
-          const json = await res.json();
-          json.ok ? resolve(json) : reject(json.error);
-        } catch(err) { reject(err); }
-      };
-      reader.readAsDataURL(file);
-    });
-  }
+  return new Promise((resolve, reject) => {
+    // Comprimir imagen antes de subir
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = async function() {
+      const canvas = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      const MAX = 1200; // máximo 1200px
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const base64 = canvas.toDataURL('image/jpeg', 0.75).split(',')[1];
+      // 0.75 = calidad 75% — buen balance tamaño/calidad
+
+      try {
+        const res = await fetch(SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            nombre: file.name,
+            tipo: 'image/jpeg',
+            datos: base64
+          })
+        });
+        const json = await res.json();
+        json.ok ? resolve(json) : reject(json.error);
+      } catch(err) { reject(err); }
+    };
+    img.src = url;
+  });
+}
 
   // ── Cargar galería ──
   async function loadGallery() {
